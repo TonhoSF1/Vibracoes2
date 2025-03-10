@@ -68,9 +68,7 @@ def Linear_System_MDoF(t, x, M_int_inv, C_int, K_int, F_int):
     velocidades = x[n_dofs:]
 
     # Calculando as acelerações usando a equação do movimento
-    aceleracoes = np.dot(
-        M_int_inv, F_int - np.dot(C_int, velocidades) - np.dot(K_int, deslocamentos)
-    )
+    aceleracoes = np.dot(M_int_inv, F_int - np.dot(C_int, velocidades) - np.dot(K_int, deslocamentos))
 
     # Concatenando velocidades e acelerações
     dxdt = np.concatenate((velocidades, aceleracoes))
@@ -85,12 +83,8 @@ def initialize_matrices(n, m, c, k):
     C = np.zeros((n, n))  # matriz de rigidez
     C[0, 0] = c
     for ii in range(0, n - 1):
-        K[ii : ii + 2, ii : ii + 2] = K[ii : ii + 2, ii : ii + 2] + np.array(
-            [[k, -k], [-k, k]]
-        )
-        C[ii : ii + 2, ii : ii + 2] = C[ii : ii + 2, ii : ii + 2] + np.array(
-            [[c, -c], [-c, c]]
-        )
+        K[ii : ii + 2, ii : ii + 2] = K[ii : ii + 2, ii : ii + 2] + np.array([[k, -k], [-k, k]])
+        C[ii : ii + 2, ii : ii + 2] = C[ii : ii + 2, ii : ii + 2] + np.array([[c, -c], [-c, c]])
 
     return M, K, C
 
@@ -316,9 +310,7 @@ def calculate_frequency_response(M, C, K, w):
     """
     H = np.zeros((len(M), len(M), len(w)), dtype="complex")
     for n in range(0, len(w)):
-        H[:, :, n] = np.linalg.inv(
-            K - M * ((2 * np.pi * w[n]) ** 2) + complex(0, 1) * C * 2 * np.pi * w[n]
-        )
+        H[:, :, n] = np.linalg.inv(K - M * ((2 * np.pi * w[n]) ** 2) + complex(0, 1) * C * 2 * np.pi * w[n])
     return H
 
 
@@ -453,7 +445,7 @@ def plot_spectrogram(t, M, x_num, fs, figsize):
     plt.show()
 
 
-def plot_n_frf(w, H, figsize=(6, 6)):
+def plot_n_frf(w, H, diagonal_only=False, figsize=(6, 6), xlim=(0, 50), ylim=(1e-5, 1e-1), **plot_kwargs):
     """
     Plota a Função de Resposta em Frequência (FRF) para um sistema com n graus de liberdade.
 
@@ -464,6 +456,8 @@ def plot_n_frf(w, H, figsize=(6, 6)):
     H : ndarray
         Array multidimensional contendo os valores da FRF.
         H deve ter dimensões (n, n, len(w)), onde n é o número de graus de liberdade.
+    diagonal_only : bool, opcional
+        Se True, plota apenas a diagonal principal de H. O padrão é False.
     figsize : tuple, opcional
         Tupla especificando o tamanho de cada subplot. O padrão é (6, 6).
 
@@ -480,34 +474,47 @@ def plot_n_frf(w, H, figsize=(6, 6)):
     - O eixo x é limitado ao intervalo [0, 50] Hz.
     - O eixo y é limitado ao intervalo [1e-5, 1e-1] m/N.
     """
-    fig, ax = plt.subplots(
-        len(H), len(H), figsize=(len(H) * figsize[0], len(H) * figsize[1])
-    )
-    for i in range(len(H)):
-        for j in range(len(H)):
-            ax[i, j].grid(visible=True, which="major", axis="both")
-            ax[i, j].semilogy(
-                w, abs(H[i, j, :]), "b"
-            )  # Aqui H deve ser um array multidimensional
-            ax[i, j].set(
+    n = len(H)
+    default_kwargs = {"color": "b", "linestyle": "-"}
+    final_kwargs = {**default_kwargs, **plot_kwargs}
+    if diagonal_only:
+        fig, ax = plt.subplots(n, 1, figsize=(figsize[0], n * figsize[1]), squeeze=False)
+        ax = ax.flatten()
+        for i in range(n):
+            ax[i].grid(True)
+            ax[i].semilogy(w, abs(H[i, i, :]), **final_kwargs)
+            ax[i].set(
                 xlabel=r"$\omega$ [Hz]",
-                ylabel=rf"$|H_{{{i + 1}{j + 1}}}(\omega)|$ [m/N]",
+                ylabel=rf"$|H_{{{i + 1}{i + 1}}}(\omega)|$ [m/N]",
+                xlim=xlim,
+                ylim=ylim,
             )
-            ax[i, j].set_xlim(0, 50)
-            ax[i, j].set_ylim(1e-5, 1e-1)
-    plt.show()
+    else:
+        fig, ax = plt.subplots(n, n, figsize=(n * figsize[0], n * figsize[1]))
+        for i in range(n):
+            for j in range(n):
+                ax[i, j].grid(True)
+                ax[i, j].semilogy(w, abs(H[i, j, :]), **final_kwargs)
+                ax[i, j].set(
+                    xlabel=r"$\omega$ [Hz]",
+                    ylabel=rf"$|H_{{{i + 1}{j + 1}}}(\omega)|$ [m/N]",
+                    xlim=xlim,
+                    ylim=ylim,
+                )
+        plt.tight_layout()
+        plt.show()
 
 
-def plot_n_phase(f2, H_exp, figsize=(6, 6)):
+def plot_n_phase(w, H, diagonal_only=False, figsize=(6, 6), xlim=(0, 50), **plot_kwargs):
     """
     Plota a fase das funções de resposta em frequência (FRF) para um sistema de n graus de liberdade.
 
     Parâmetros:
     -----------
-    f2 : array-like
+    w : array-like
         Frequências em Hz.
-    H_exp : array-like
-        Matriz de funções de resposta em frequência (FRF) complexas, onde H_exp[i, j, :] representa a FRF entre o i-ésimo e j-ésimo graus de liberdade.
+    H : array-like
+        Matriz de funções de resposta em frequência (FRF) complexas, onde H[i, j, :] representa a FRF entre o i-ésimo e j-ésimo graus de liberdade.
     figsize : tuple, opcional
         Tamanho da figura (largura, altura) em polegadas. O padrão é (14, 6).
 
@@ -516,45 +523,64 @@ def plot_n_phase(f2, H_exp, figsize=(6, 6)):
     None
         A função não retorna nada. Ela exibe um gráfico com as fases das FRFs.
     """
-    fig, ax = plt.subplots(
-        len(H_exp),
-        len(H_exp),
-        figsize=(len(H_exp) * figsize[0], len(H_exp) * figsize[1]),
-    )
-    for i in range(len(H_exp)):
-        for j in range(len(H_exp)):
-            ax[i, j].grid(visible=True, which="major", axis="both")
-            ax[i, j].plot(f2, np.angle(H_exp[i, j, :]), "b")
-            ax[i, j].set(
+    n = len(H)
+    default_kwargs = {"color": "b", "linestyle": "-"}
+    final_kwargs = {**default_kwargs, **plot_kwargs}
+
+    if diagonal_only:
+        fig, ax = plt.subplots(n, 1, figsize=(figsize[0], n * figsize[1]), squeeze=False)
+        ax = ax.flatten()
+        for i in range(n):
+            ax[i].grid(True)
+            ax[i].plot(w, np.angle(H[i, i, :]), **final_kwargs)
+            ax[i].set(
                 xlabel=r"$\omega$ [Hz]",
-                ylabel=f"$H_{{{i + 1}{j + 1}}}" + r"(\omega)$ - Fase",
+                ylabel=rf"$H_{{{i + 1}{i + 1}}}(\omega)$ - Fase",
+                xlim=xlim,
             )
-            ax[i, j].set_xlim(0, 50)
+    else:
+        fig, ax = plt.subplots(n, n, figsize=(n * figsize[0], n * figsize[1]))
+        for i in range(n):
+            for j in range(n):
+                ax[i, j].grid(True)
+                ax[i, j].plot(w, np.angle(H[i, j, :]), **final_kwargs)
+                ax[i, j].set(xlabel=r"$\omega$ [Hz]", ylabel=rf"$H_{{{i + 1}{j + 1}}}(\omega)$ - Fase", xlim=xlim)
+    plt.tight_layout()
     plt.show()
 
 
-def plot_n_imaginary(f2, H, figsize=(14, 6)):
+def plot_n_imaginary(w, H, diagonal_only=False, figsize=(6, 6), xlim=(0, 50), **plot_kwargs):
     """
     Plota as partes imaginárias de uma matriz de funções de transferência.
 
     Parâmetros:
-    f2 (array-like): Frequências em Hz.
+    w (array-like): Frequências em Hz.
     H (array-like): Matriz de funções de transferência complexas.
     figsize (tuple, opcional): Tamanho da figura (largura, altura). Padrão é (14, 6).
+    diagonal_only (bool, opcional): Se True, plota apenas a diagonal principal de H. Padrão é False.
 
     Retorna:
     None
     """
-    fig, ax = plt.subplots(len(H), len(H), figsize=figsize)
-    for i in range(len(H)):
-        for j in range(len(H)):
-            ax[i, j].grid(visible=True, which="major", axis="both")
-            ax[i, j].plot(f2, np.imag(H[i, j, :]), "b")
-            ax[i, j].set(
-                xlabel=r"$\omega$ [Hz]",
-                ylabel=f"imag($H_{{{i + 1}{j + 1}}}" + r"(\omega)$)",
-            )
-            ax[i, j].set_xlim(0, 50)
+    n = len(H)
+    default_kwargs = {"color": "b", "linestyle": "-"}
+    final_kwargs = {**default_kwargs, **plot_kwargs}  # Combina defaults com kwargs do usuário
+
+    if diagonal_only:
+        fig, ax = plt.subplots(n, 1, figsize=(figsize[0], n * figsize[1]), squeeze=False)
+        ax = ax.flatten()
+        for i in range(n):
+            ax[i].grid(visible=True, which="major", axis="both")
+            ax[i].plot(w, np.imag(H[i, i, :]), **final_kwargs)
+            ax[i].set(xlabel=r"$\omega$ [Hz]", ylabel=rf"imag($H_{{{i + 1}{i + 1}}}(\omega)$)", xlim=xlim)
+    else:
+        fig, ax = plt.subplots(n, n, figsize=(n * figsize[0], n * figsize[1]))
+        for i in range(n):
+            for j in range(n):
+                ax[i, j].grid(visible=True, which="major", axis="both")
+                ax[i, j].plot(w, np.imag(H[i, j, :]), **final_kwargs)
+                ax[i, j].set(xlabel=r"$\omega$ [Hz]", ylabel=rf"imag($H_{{{i + 1}{j + 1}}}(\omega)$)", xlim=xlim)
+    plt.tight_layout()
     plt.show()
 
 
